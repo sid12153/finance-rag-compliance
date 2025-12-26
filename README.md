@@ -30,3 +30,19 @@ These constraints are intentional and reflect analyst and compliance-oriented wo
 - `data/raw/` – Raw SEC filing PDFs (not committed if large)
 - `architecture.md` – System design and data flow
 - `data_sources.md` – Description of source documents and scope
+
+## Data Ingestion and Chunking
+
+Public SEC filings (10-K) are ingested from PDF format and processed through a deterministic chunking pipeline. Each filing is extracted using `pdfplumber`, cleaned, and split into overlapping text chunks to support downstream retrieval.
+
+For each chunk, the pipeline records:
+- document identifier
+- company name
+- filing year and type
+- character length
+- deterministic chunk ID
+
+The current dataset includes:
+- Goldman Sachs 2023 10-K (1,789 chunks)
+- JPMorgan Chase 2023 10-K (1,408 chunks)
+- Morgan Stanley 2023 10-K (637 chunks)

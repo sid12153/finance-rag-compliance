@@ -46,3 +46,5 @@ The current dataset includes:
 - Goldman Sachs 2023 10-K (1,789 chunks)
 - JPMorgan Chase 2023 10-K (1,408 chunks)
 - Morgan Stanley 2023 10-K (637 chunks)
+
+Processed chunks are stored in `data/processed/chunks.jsonl` (3,834 chunks across 3 filings).

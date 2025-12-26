@@ -1,85 +1,76 @@
 # Architecture
 
-This project implements a strict Retrieval-Augmented Generation (RAG) workflow for evidence-based analysis of SEC filings.
+This project implements a strict evidence-first retrieval workflow for analyst-style risk and disclosure analysis of SEC 10-K filings.
 
-The guiding rule is simple:
-**Every answer must be supported by retrieved excerpts from indexed filings and must include citations.**
-If the system cannot retrieve relevant evidence, it should refuse to answer.
+Core rule:
+**Every response must be grounded in retrieved excerpts from indexed filings and must include citations.**
+If the system cannot retrieve relevant evidence, it must refuse.
 
 ---
 
-## High-Level System Components
+## System Components
 
-### 1) Document Ingestion
-- Input: SEC 10-K filings (PDF/HTML converted to text)
-- Output: clean text + metadata per filing
+### 1) Document Ingestion (PDF → Text)
+- Input: SEC 10-K filings in PDF format stored in `data/raw`
+- Extraction: `pdfplumber`
+- Output: raw text per filing (document-level)
 
-Key ingestion outputs:
-- normalized text
-- document ID (company + fiscal year)
-- filing metadata (form type, filing date, source reference)
-
-### 2) Chunking and Indexing
-- Filing text is split into overlapping chunks sized for retrieval.
+### 2) Chunking (Text → Overlapping Segments)
+- Filing text is cleaned and split into overlapping character chunks.
 - Each chunk stores:
-  - chunk ID
-  - document ID
-  - section label (if available, e.g., “Risk Factors”)
-  - chunk text
-- Chunks are embedded and stored in a local vector index.
+  - `chunk_id` (deterministic)
+  - `doc_id` and filename
+  - company, filing year, filing type
+  - chunk text and length
+- Output: `data/processed/chunks.jsonl`
 
-### 3) Retrieval
+### 3) Embeddings (Chunks → Vectors)
+- Model: `sentence-transformers/all-MiniLM-L6-v2`
+- Embeddings are normalized for cosine similarity retrieval.
+- Output: vectors aligned 1:1 with chunk metadata.
+
+### 4) Vector Store (FAISS Index)
+- Index type: `IndexFlatIP` (inner product on normalized embeddings = cosine similarity)
+- Artifacts:
+  - `data/processed/embeddings.faiss`
+  - `data/processed/embeddings_meta.jsonl` (metadata aligned to FAISS ids)
+
+### 5) Retrieval (Question → Top-k Evidence)
 Given a user question:
-- compute query embedding
-- retrieve top-k most relevant chunks (optionally filtered by company/year)
-- return retrieved excerpts and metadata
+- embed query using the same embedding model
+- retrieve top-k chunk IDs from FAISS
+- optionally filter by company / year (UI selection)
+- return top chunks with scores and citations
 
-### 4) Answer Generation (Grounded)
-- LLM receives:
-  - the user question
-  - retrieved chunks (only)
-  - strict instructions to cite evidence
-- Output must include:
-  - a concise answer
-  - citations referencing chunk IDs and document metadata
-  - refusal if evidence is insufficient
-
-### 5) Guardrails (Reliability Layer)
-Guardrails enforce:
-- **Citation requirement**: every claim must map to retrieved text
-- **Scope restriction**: no external knowledge beyond the indexed filings
-- **Refusal behavior**: if retrieval confidence is low or evidence is missing
-- **Transparency**: return the retrieved excerpts alongside the answer
-
-### 6) UI + API Layer
-- **FastAPI backend** provides:
-  - `/ask` for Q&A with citations
-  - `/sources` to list available filings
+### 6) API + UI Layer
+- FastAPI backend:
+  - `/sources` lists available filings
+  - `/ask` performs retrieval and returns evidence + citations
   - `/health` health check
-- **Streamlit UI** provides:
-  - company/year selection
+- Streamlit UI:
+  - company selection
   - question input
-  - answer display + citations
-  - expandable retrieved excerpts panel
+  - answer panel + citations
+  - evidence excerpts display
 
 ---
 
 ## Data Flow Summary
 
-1. Download filings → convert to text  
-2. Chunk text → embed chunks → build vector index  
-3. User asks question → retrieve top chunks  
-4. Generate answer using only retrieved chunks  
-5. Return answer + citations + evidence excerpts
+1. PDFs → extracted text  
+2. Text → chunked JSONL  
+3. JSONL → embeddings  
+4. embeddings → FAISS index  
+5. question → retrieve top chunks  
+6. return evidence + citations (strict)
 
 ---
 
-## What “Strict” Means in This Project
+## Guardrails (Planned, Day 11)
+Guardrails will enforce:
+- scope restriction (no external knowledge)
+- minimum retrieval confidence thresholds
+- refusal behavior when evidence is insufficient
+- citation formatting consistency
 
-The system must:
-- answer only from retrieved text
-- include citations for every response
-- refuse when evidence is not present
-
-This constraint is intentional and mirrors compliance-focused workflows in finance and consulting where traceability matters as much as correctness.
-
+Optional later: a synthesis step that summarizes retrieved evidence while preserving strict citations.

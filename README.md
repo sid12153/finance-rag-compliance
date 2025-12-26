@@ -5,15 +5,17 @@ This project explores how public financial filings such as SEC 10-K and 10-Q rep
 
 A key focus of this project is reliability rather than generation. The system is designed to surface evidence from filings, cite the source of each response, and avoid answering questions when the available documents do not provide sufficient information.
 
-## Current Status (Baseline)
+## Current Status (Evidence-First Retrieval)
 
-The current version implements a strict evidence-first baseline:
+The current version implements a strict evidence-first retrieval workflow:
 - filings are parsed from PDFs stored in `data/raw`
-- text is chunked and retrieved using keyword overlap (no embeddings yet)
+- text is chunked into overlapping segments and saved to `data/processed/chunks.jsonl`
+- embeddings are generated using `sentence-transformers/all-MiniLM-L6-v2`
+- a FAISS vector index is built and stored in `data/processed/embeddings.faiss`
 - the API returns the top retrieved excerpts with chunk-level citations
 - the system refuses to answer if no relevant evidence is retrieved
 
-Next step: replace keyword retrieval with embeddings + vector search, then add generation with guardrails.
+Next step: wire FAISS retrieval into the `/ask` API fully, then add guardrails and answer synthesis (optional) while preserving strict citation behavior.
 
 ## Scope and Constraints
 
@@ -27,7 +29,7 @@ These constraints are intentional and reflect analyst and compliance-oriented wo
 
 - `api/` – FastAPI backend implementing document ingestion, retrieval, and strict evidence-based responses
 - `streamlit/` – Streamlit user interface for querying filings and reviewing citations
-- `data/raw/` – Raw SEC filing PDFs (not committed if large)
+- `data/raw/` – Raw SEC filing PDFs used for the current baseline
 - `architecture.md` – System design and data flow
 - `data_sources.md` – Description of source documents and scope
 
@@ -48,3 +50,30 @@ The current dataset includes:
 - Morgan Stanley 2023 10-K (637 chunks)
 
 Processed chunks are stored in `data/processed/chunks.jsonl` (3,834 chunks across 3 filings).
+
+## How to Run Locally
+
+Install dependencies:
+```bash
+python -m pip install -r requirements.txt
+ ```
+
+Build chunks:
+```bash
+python -m scripts.build_chunks
+```
+
+Build embeddings + FAISS index:
+```bash
+python -m scripts.build_faiss_index
+```
+
+Start the API:
+```bash
+uvicorn api.main:app --reload
+```
+
+Start Streamlit:
+```bash
+streamlit run streamlit/app.py
+```

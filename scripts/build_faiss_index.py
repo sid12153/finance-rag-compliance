@@ -11,12 +11,10 @@ from tqdm import tqdm
 
 from api.rag.embeddings import embed_texts, DEFAULT_MODEL_NAME
 
-# CHUNKS_PATH = Path("data/processed/chunks.jsonl")
-CHUNKS_PATH = Path("C:/Users/Siddharth/Desktop/Portfolio_Projects/Finance-AI-RAG/data/processed/chunks.jsonl")
-# INDEX_PATH = Path("data/processed/embeddings.faiss")
-INDEX_PATH = Path("C:/Users/Siddharth/Desktop/Portfolio_Projects/Finance-AI-RAG/data/processed/embeddings.faiss")
-# META_PATH = Path("data/processed/embeddings_meta.jsonl")
-META_PATH = Path("C:/Users/Siddharth/Desktop/Portfolio_Projects/Finance-AI-RAG/data/processed/embeddings_meta.jsonl")
+CHUNKS_PATH = Path("data/processed/chunks.jsonl")
+INDEX_PATH = Path("data/processed/embeddings.faiss")
+META_PATH = Path("data/processed/embeddings_meta.jsonl")
+
 BATCH_SIZE = 32
 
 
@@ -81,3 +79,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

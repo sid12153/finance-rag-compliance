@@ -15,7 +15,7 @@ The current version implements a strict evidence-first retrieval workflow:
 - the API returns the top retrieved excerpts with chunk-level citations
 - the system refuses to answer if no relevant evidence is retrieved
 
-Next step: wire FAISS retrieval into the `/ask` API fully, then add guardrails and answer synthesis (optional) while preserving strict citation behavior.
+Next step: add guardrails (refusal thresholds, citation enforcement, scope limits), then introduce multi-agent verification and evaluation.
 
 ## Scope and Constraints
 
@@ -72,6 +72,10 @@ Start the API:
 ```bash
 uvicorn api.main:app --reload
 ```
+
+Sanity check:
+- `GET /sources` should list the 3 filings
+- a sample `/ask` should return citations and evidence chunks
 
 Start Streamlit:
 ```bash

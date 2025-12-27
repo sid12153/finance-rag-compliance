@@ -6,9 +6,10 @@ from typing import Any, Dict, List, Optional
 from fastapi import FastAPI
 from pydantic import BaseModel
 
-from api.rag.pdf_text import load_documents
-from api.rag.retrieve_stub import EvidenceChunk, retrieve_top_k
+from api.rag.faiss_store import list_sources, search
 
+
+DOC_CACHE = {}
 
 RAW_DIR = Path("data/raw")
 
@@ -19,13 +20,14 @@ class AskRequest(BaseModel):
     question: str
     doc_id: Optional[str] = None
     top_k: int = 5
-    max_pages: Optional[int] = None  # useful for quick dev runs
+    max_pages: Optional[int] = None
 
 
 class Citation(BaseModel):
     chunk_id: str
     doc_id: str
-    score: int
+    score: float
+
 
 
 class AskResponse(BaseModel):
@@ -35,64 +37,45 @@ class AskResponse(BaseModel):
     citations: List[Citation]
     evidence: List[Dict[str, Any]]  # includes chunk text for transparency
 
+@app.get("/")
+def root():
+    return {"message": "Finance RAG API is running. See /docs"}
 
 @app.get("/health")
 def health() -> Dict[str, str]:
     return {"status": "ok"}
 
-
 @app.get("/sources")
 def sources() -> Dict[str, Any]:
-    docs = load_documents(RAW_DIR, max_pages=2)  # quick listing; doesn’t need full extraction
     return {
-        "raw_dir": str(RAW_DIR),
-        "available_docs": [{"doc_id": d.doc_id, "filename": d.filename} for d in docs.values()],
+        "available_docs": list_sources()
     }
-
 
 @app.post("/ask", response_model=AskResponse)
 def ask(req: AskRequest) -> AskResponse:
-    docs = load_documents(RAW_DIR, max_pages=req.max_pages)
-    if not docs:
+    # doc_id is optional. If provided, results filter to that filing only.
+    try:
+        hits = search(query=req.question, top_k=req.top_k, doc_id=req.doc_id)
+    except FileNotFoundError as e:
         return AskResponse(
             answer="",
             refused=True,
-            refusal_reason="No documents found in data/raw. Add the 10-K PDFs and try again.",
+            refusal_reason=str(e),
             citations=[],
             evidence=[],
         )
-
-    # choose doc
-    doc_id = req.doc_id
-    if doc_id is None:
-        # default to first doc
-        doc_id = sorted(docs.keys())[0]
-
-    if doc_id not in docs:
-        return AskResponse(
-            answer="",
-            refused=True,
-            refusal_reason=f"Unknown doc_id '{doc_id}'. Use /sources to see available documents.",
-            citations=[],
-            evidence=[],
-        )
-
-    doc = docs[doc_id]
-    hits: List[EvidenceChunk] = retrieve_top_k(doc_id=doc.doc_id, doc_text=doc.text, query=req.question, top_k=req.top_k)
 
     if not hits:
         return AskResponse(
-            answer="I can’t answer that from the indexed filing text I currently have.",
+            answer="I can’t answer that from the indexed filings I currently have.",
             refused=True,
-            refusal_reason="No relevant evidence retrieved from the selected filing. Try rephrasing or choose a different filing.",
+            refusal_reason="No relevant evidence retrieved. Try rephrasing or choose a different filing.",
             citations=[],
             evidence=[],
         )
 
-    # Strict baseline answer: don’t generate beyond evidence.
-    # For now, we return a short evidence-grounded summary constructed from the top excerpts.
     answer_lines = [
-        "I found relevant excerpts in the filing. Here are the most relevant sections (with citations):"
+        "I found relevant excerpts in the filings. Here are the most relevant sections (with citations):"
     ]
     for h in hits[:3]:
         snippet = h.text.replace("\n", " ").strip()
@@ -119,3 +102,4 @@ def ask(req: AskRequest) -> AskResponse:
         citations=citations,
         evidence=evidence,
     )
+
